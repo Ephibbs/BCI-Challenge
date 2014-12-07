@@ -29,3 +29,10 @@ ChannelsLocation.csv TrainLabels.csv      test.zip             train.zip
 SampleSubmission.csv test                 train
 
 ```
+
+Future Work
+-----------
+
+1. Use time
+2. Neural Networks (FANN)
+
