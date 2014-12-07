@@ -1,4 +1,4 @@
 BCI-Challenge
 =============
 
-The Preschoolers
+The Preschoolers of Sweet & Salty Nut
