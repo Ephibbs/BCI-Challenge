@@ -1,6 +1,6 @@
 import csv
 import cPickle
-# import numpy
+import numpy as np
 import os
 
 
@@ -8,17 +8,29 @@ import os
 for file_name in os.listdir("./data/train"):
 	print "Processing: " + file_name
 
-	# Code to pickle into a numpy array
+	## Code to pickle into a numpy array
 
 	# numpy_arr = numpy.genfromtxt("./data/train/" + file_name, delimiter=",")
 	# pickle = open("./data_processed/" + file_name.replace(".csv", ".pkl"), "w+b")
 
 	# cPickle.dump(numpy_arr, pickle)
 
-	data_list = list(csv.reader(open("./data/train/" + file_name), delimiter=","))
-	pickle_file = open("./data_processed/" + file_name.replace(".csv", ".pkl"), "w+b")
 
-	cPickle.dump(data_list, pickle_file)
+	## Code to pickle into a list
+
+	# data_list = list(csv.reader(open("./data/train/" + file_name), delimiter=","))
+	# pickle_file = open("./data_processed/" + file_name.replace(".csv", ".pkl"), "w+b")
+
+	# cPickle.dump(data_list, pickle_file)
+
+
+	## Code to store .csv into a numpy binary data file
+
+	numpy_arr = numpy.genfromtxt("./data/train/" + file_name, delimiter=",")
+	pickle = open("./data_processed/" + file_name.replace(".csv", ".pkl"), "w+b")
+
+	np.save("./data_processed/" + file_name.replace(".csv", ".npy.pkl"), numpy_arr)
+
 
 
 # import csv
