@@ -14,6 +14,7 @@ def splitUpSamples(files):
 		session = np.load(f)[1:].astype(float)
 		indices = np.where(session[:,-1] == 1)[0]
 		cntr = 0
+		print cntr
 		for i in range(len(indices)):
 			stop = indices[i+1] if i+1 < len(indices) else len(session)
 			channels = session[range(indices[i], stop), 1:-1].T
