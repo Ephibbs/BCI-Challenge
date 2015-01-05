@@ -1,26 +1,16 @@
 ## Adapted from phalaris's GBM benchmark. Thanks phalaris.
 
-from __future__ import division
 import time
 import numpy as np
 import pandas as pd
 import sklearn.ensemble as ens
 from sklearn import metrics
 
+
 def score(classifier, X, Y):
     fpr, tpr, thresholds = metrics.roc_curve(Y, classifier.predict(X), pos_label=1)
     auc = metrics.auc(fpr,tpr)
     return auc
-
-def labelled_array(y, column_labels=[]):
-    '''Create a structured array (numpy array with labelled columns).
-
-    Args:
-        y: number of rows
-        column_labels: list of column labels; number of columns is assumed size(column_labels)
-    '''
-    column_labels = [(label, '<f8') for label in column_labels]
-    return np.array([tuple([0 for i in range(len(column_labels))]) for j in range(y)], dtype=column_labels)
 
 
 def get_column(np_array, label):
@@ -35,6 +25,7 @@ def get_column(np_array, label):
 
     return np_array[:, column[label]]
 
+
 def parse_data(dirName, subs, channels, duration):
     #helper function parses data and saves to numpy
     output = pd.DataFrame(columns=['subject','session','feedback_num','start_pos'] + reduce(lambda x,y: x+y, [[channel+'_' + s for s in map(str,range(duration+1))] for channel in channels]),index=range(5440))
@@ -44,17 +35,14 @@ def parse_data(dirName, subs, channels, duration):
         for j in range(1,6):
             stime = time.time()
             # Load in data
-            # temp = pd.read_csv('train/Data_S' + i + '_Sess0'  + str(j) + '.csv')
             temp = np.load('data/data_processed/'+dirName+'/Data_S' + i + '_Sess0'  + str(j) + '.npy')
             temp = np.delete(temp, (0), axis=0) # delete first row (labels)
 
             # Get the positions of the non-zero FeedBackEvents
-            # fb = temp.query('FeedBackEvent == 1',engine='python')['FeedBackEvent']
             fb = np.flatnonzero(get_column(temp, "FeedBackEvent"))
             
             counter2 = 0
-            for k in fb: # replaced "fb.index" with "fb"
-                # temp2 = temp.loc[int(k):int(k)+260,'Cz']
+            for k in fb:
                 temp2 = pd.Series(reduce(lambda x,y: x+y, [get_column(temp, channel)[k:k+duration + 1] for channel in channels]))
 
                 temp2.index = reduce(lambda x,y: x+y, [[channel+'_' + s for s in map(str,range(duration+1))] for channel in channels])
@@ -94,12 +82,14 @@ def get_data(redo=1, channels=["Cz"], duration=260):
 
     return train, test
 
+
 def predictions_to_file(algo, train, train_labels, test):
     algo.fit(train, train_labels)
     preds = algo.predict_proba(test)
     preds = preds[:,1]
     submission['Prediction'] = preds
     submission.to_csv('prediction.csv',index=False)
+
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -110,8 +100,6 @@ if __name__ == "__main__":
     train_labels = pd.read_csv('data/TrainLabels.csv').values[:,1].astype(float).ravel()
 
     print 'training GBM'
-
-    #Probably better to set max_features to default which is sqrt(n_features) or just delete that part, the current value was left in by accident, and probably is not great
 
     ###     Algorithms      ###
     #algo = ens.AdaBoostClassifier(n_estimators=500, learning_rate=0.05)
