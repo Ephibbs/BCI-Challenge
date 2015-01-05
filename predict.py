@@ -1,9 +1,7 @@
-## Adapted from phalaris's GBM benchmark.
+## Adapted from phalaris's GBM benchmark. Thanks phalaris.
 
 from __future__ import division
-
 import time
-
 import numpy as np
 import pandas as pd
 import sklearn.ensemble as ens
@@ -43,11 +41,11 @@ submission = pd.read_csv('data/SampleSubmission.csv')
 
 train = pd.DataFrame(columns=['subject','session','feedback_num','start_pos'] + ['Cz_' + s for s in map(str,range(261))],index=range(5440))
 
-trainz = labelled_array(5440, ['subject', 'session', 'feedback_num', 'start_pos'] + ['Cz_' + s for s in map(str,range(261))]) #######################
+# trainz = labelled_array(5440, ['subject', 'session', 'feedback_num', 'start_pos'] + ['Cz_' + s for s in map(str,range(261))]) #######################
 
 
 counter = 0
-print 'loading train data'
+print '========train data========'
 data = {}
 for i in train_subs:
     for j in range(1,6):
@@ -93,7 +91,7 @@ train.to_csv('train_cz.csv',ignore_index=True)
 
 
 test = pd.DataFrame(columns=['subject','session','feedback_num','start_pos'] + ['Cz_' + s for s in map(str,range(261))],index=range(3400))
-print 'loading test data'
+print '========test data========'
 counter = 0
 data = {}
 for i in test_subs:
