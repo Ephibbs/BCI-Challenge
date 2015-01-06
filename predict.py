@@ -1,14 +1,15 @@
 ## Adapted from phalaris's GBM benchmark. Thanks phalaris.
 
 import time
+import sys
 import numpy as np
 import pandas as pd
 import sklearn.ensemble as ens
 from sklearn import metrics
 
 
-def score(classifier, X, Y):
-    fpr, tpr, thresholds = metrics.roc_curve(Y, classifier.predict(X), pos_label=1)
+def score(classifier, X, y):
+    fpr, tpr, thresholds = metrics.roc_curve(y, classifier.predict_proba(X)[:,1], pos_label=1)
     auc = metrics.auc(fpr,tpr)
     return auc
 
@@ -26,66 +27,78 @@ def get_column(np_array, label):
     return np_array[:, column[label]]
 
 
-def parse_data(dirName, subs, channels, duration):
-    #helper function parses data and saves to numpy
-    output = pd.DataFrame(columns=['subject','session','feedback_num','start_pos'] + reduce(lambda x,y: x+y, [[channel+'_' + s for s in map(str,range(duration+1))] for channel in channels]),index=range(5440))
+def parse_data(dirName, subs, channels, duration, samples):
+    '''Generates X and y to be fed into our predictor, and saves them to disk.
+
+    Args:
+        dirName: The directory name holding the data (e.g., "train", "test")
+        subs: The subjects.
+        channels: The EEG data channels to use.
+        duration: The number of time-intervals, per sample, to use.
+    '''
+    output = pd.DataFrame(columns=['subject','session','feedback_num','start_pos'] + reduce(lambda x,y: x+y, [[channel+'_' + s for s in map(str,range(duration+1))] for channel in channels]),index=range(samples))
     counter = 0
-    data = {}
-    for i in subs:
-        for j in range(1,6):
-            stime = time.time()
+
+    for i in subs: # Subjects
+        for j in range(1,6): # Sessions (1 - 5)
             # Load in data
             temp = np.load('data/data_processed/'+dirName+'/Data_S' + i + '_Sess0'  + str(j) + '.npy')
-            temp = np.delete(temp, (0), axis=0) # delete first row (labels)
+            temp = np.delete(temp, (0), axis=0) # delete first row (column labels)
 
             # Get the positions of the non-zero FeedBackEvents
-            fb = np.flatnonzero(get_column(temp, "FeedBackEvent"))
+            feedback_positions = np.flatnonzero(get_column(temp, "FeedBackEvent"))
             
-            counter2 = 0
-            for k in fb:
+            feedback_counter = 0 # counter keeping track of feedback_num
+            for k in feedback_positions:
                 temp2 = pd.Series(reduce(lambda x,y: x+y, [get_column(temp, channel)[k:k+duration + 1] for channel in channels]))
 
                 temp2.index = reduce(lambda x,y: x+y, [[channel+'_' + s for s in map(str,range(duration+1))] for channel in channels])
                 output.loc[counter,reduce(lambda x,y: x+y, [[channel+'_' + s for s in map(str,range(duration+1))] for channel in channels])] = temp2
                 output.loc[counter,'session'] = j
                 output.loc[counter, 'subject'] = i
-                output.loc[counter, 'feedback_num'] = counter2
+                output.loc[counter, 'feedback_num'] = feedback_counter
                 output.loc[counter, 'start_pos'] = k
                 counter +=1
-                counter2 +=1
+                feedback_counter +=1
+        sys.stdout.write(i + " ") # Using sys.stdout so we don't print newlines
+        sys.stdout.flush()
 
-            print time.time() - stime
+    print '' # print new line
 
-        print 'subject ', i
-
-    #output.to_csv(dirName+'.csv',ignore_index=True)
-    np.save(dirName+'.csv', output.values.astype(float))
-
-    return output.values.astype(float)
+    output.to_csv(dirName+'.csv',ignore_index=True)
+    return output
 
 
-def get_data(redo=1, channels=["Cz"], duration=260):
-    #redo: reparse the data
-    #channels: channels to use
-    #duration: number of timesteps of each channel starting with the feedback event
-    if redo==0: 
-        return np.load("train.npy"), np.load("test.npy")
+def get_data(redo=True, channels=["Cz"], duration=260):
+    '''Helper function for parse_data.
+
+    Args:
+        redo: Boolean flag for whether data should be regenerated from scratch,
+            or just loaded from disk.
+        channels: The EEG data channels to use.
+        duration: The number of time-intervals, per sample, to use.
+    '''
+
+    print 'Getting data'
+
+    if redo == False: 
+        return pd.read_csv('train.csv'), pd.read_csv('test.csv')
 
     train_subs = ['02','06','07','11','12','13','14','16','17','18','20','21','22','23','24','26']
     test_subs = ['01','03','04','05','08','09','10','15','19','25']
 
-    print '========train data========'
-    train = parse_data("train", train_subs, channels, duration)
-
-    print '========test data========'
-    test = parse_data("test", test_subs, channels, duration)
+    print '========loading train data========'
+    train = parse_data("train", train_subs, channels, duration, 5440)
+    print '========loading test data========'
+    test = parse_data("test", test_subs, channels, duration, 3400)
 
     return train, test
 
 
 def predictions_to_file(algo, train, train_labels, test):
     algo.fit(train, train_labels)
-    preds = algo.predict_proba(test)
+
+    preds = algo.predict_proba(test) # why
     preds = preds[:,1]
     submission['Prediction'] = preds
     submission.to_csv('prediction.csv',index=False)
@@ -95,23 +108,25 @@ if __name__ == "__main__":
     start_time = time.time()
 
     submission = pd.read_csv('data/SampleSubmission.csv')
-
-    train, test = get_data(0, ["Cz"], 130)
-    train_labels = pd.read_csv('data/TrainLabels.csv').values[:,1].astype(float).ravel()
+    train, test = get_data(True, ["Cz"], 120)
+    train_labels = pd.read_csv('data/TrainLabels.csv').values[:,1].ravel().astype(int)
 
     print 'training GBM'
-
     ###     Algorithms      ###
     #algo = ens.AdaBoostClassifier(n_estimators=500, learning_rate=0.05)
     algo = ens.GradientBoostingClassifier(n_estimators=500, learning_rate=0.05)
 
-    split = len(train)/2
-    algo.fit(train[:split], train_labels[:split])
-    pred = algo.predict(train[split:])
-    print(metrics.classification_report(train_labels[split:], pred))
-    print algo.score(train[split:], train_labels[split:])
-    #print score(algo, train[split:], train_labels[split:])
+    split = len(train)/2 # location to split data for cross-validation
+    algo.fit(train[:split], train_labels[:split]) # train algorithm
+    pred = algo.predict(train[split:]) # predict
 
-    #predictions_to_file(algo, train, train_labels, test)
-    print 'Done'
-    print time.time() - start_time
+    # Print prediction report and scores
+    print metrics.classification_report(train_labels[split:], pred) # Classification report
+    print "GBM score: " + str(algo.score(train[split:], train_labels[split:]))
+    print "AUC score:" + str(score(algo, train[split:], train_labels[split:]))
+
+    # Make predictions and save to file
+    predictions_to_file(algo, train, train_labels, test)
+
+    print "Finished."
+    print "Running time: " + str(time.time() - start_time)
