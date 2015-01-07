@@ -4,6 +4,7 @@ import time
 import sys
 import numpy as np
 import pandas as pd
+import sklearn
 import sklearn.ensemble as ens
 from sklearn import metrics
 
@@ -27,6 +28,23 @@ def get_column(np_array, label):
     return np_array[:, column[label]]
 
 
+def fft(time_data):
+    '''Computes magnitude of a fast fourier transform, by frequency, on a log10 scale.
+
+    Args:
+        time_data: Time-series data.
+
+    Returns:
+        A list of magnitudes corresponding to the signal frequencies falling in certain ranges.
+    '''
+
+    transform = np.fft.rfft(time_data)
+
+    sliced = transform[1:48] # 1Hz, 2Hz, ... , 47Hz
+
+    return np.log10(np.absolute(sliced))
+
+
 def parse_data(dirName, subs, channels, duration, samples):
     '''Generates X and y to be fed into our predictor, and saves them to disk.
 
@@ -36,7 +54,13 @@ def parse_data(dirName, subs, channels, duration, samples):
         channels: The EEG data channels to use.
         duration: The number of time-intervals, per sample, to use.
     '''
-    output = pd.DataFrame(columns=['subject','session','feedback_num','start_pos'] + reduce(lambda x,y: x+y, [[channel+'_' + s for s in map(str,range(duration+1))] for channel in channels]),index=range(samples))
+    output = pd.DataFrame(
+        columns=
+            ['subject','session','feedback_num','start_pos'] +
+            reduce(lambda x,y: x+y, [[channel+'_'+s for s in map(str,range(duration+1))] for channel in channels]) +
+            ['fft_'+freq for freq in map(str,range(1, 48))],
+        index=range(samples)
+    )
     counter = 0
 
     for i in subs: # Subjects
@@ -50,10 +74,17 @@ def parse_data(dirName, subs, channels, duration, samples):
             
             feedback_counter = 0 # counter keeping track of feedback_num
             for k in feedback_positions:
-                temp2 = pd.Series(reduce(lambda x,y: x+y, [get_column(temp, channel)[k:k+duration + 1] for channel in channels]))
+                temp_time_data = pd.Series(reduce(lambda x,y: x+y, [get_column(temp, channel)[k:k+duration + 1] for channel in channels]))
 
-                temp2.index = reduce(lambda x,y: x+y, [[channel+'_' + s for s in map(str,range(duration+1))] for channel in channels])
-                output.loc[counter,reduce(lambda x,y: x+y, [[channel+'_' + s for s in map(str,range(duration+1))] for channel in channels])] = temp2
+                sklearn.preprocessing.scale(temp_time_data, copy=False)
+
+                temp2 = pd.concat([temp_time_data, pd.Series(fft(temp_time_data.values))])
+
+
+                temp2.index = reduce(lambda x,y: x+y, [[channel+'_'+s for s in map(str,range(duration+1))] for channel in channels]) + ['fft_'+freq for freq in map(str,range(1, 48))]
+
+
+                output.loc[counter, reduce(lambda x,y: x+y, [[channel+'_' + s for s in map(str,range(duration+1))] for channel in channels]) + ['fft_'+freq for freq in map(str,range(1, 48))]] = temp2
                 output.loc[counter,'session'] = j
                 output.loc[counter, 'subject'] = i
                 output.loc[counter, 'feedback_num'] = feedback_counter
@@ -84,6 +115,7 @@ def get_data(redo=True, channels=["Cz"], duration=260):
     if redo == False: 
         return pd.read_csv('train.csv'), pd.read_csv('test.csv')
 
+    # train_subs = ['02']
     train_subs = ['02','06','07','11','12','13','14','16','17','18','20','21','22','23','24','26']
     test_subs = ['01','03','04','05','08','09','10','15','19','25']
 
@@ -105,16 +137,19 @@ def predictions_to_file(algo, train, train_labels, test):
 
 
 if __name__ == "__main__":
+
+    # sensors = ['EOG', 'FCz', 'O2', 'O1', 'Fz', 'TP7', 'CPz', 'C3', 'C2', 'C1', 'C6', 'C5', 'TP8', 'FC1', 'FC2', 'FC3', 'FC4', 'FC5', 'FC6', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'Cz', 'CP1', 'CP2', 'CP3', 'CP4', 'CP5', 'CP6', 'POz', 'Pz', 'C4', 'P4', 'FT7', 'FT8', 'AF8', 'PO7', 'AF4', 'AF3', 'P2', 'P3', 'P1', 'P6', 'P7', 'T8', 'P5', 'T7', 'P8', 'Fp1', 'Fp2', ' AF7', 'P08']
+
     start_time = time.time()
 
     submission = pd.read_csv('data/SampleSubmission.csv')
     train, test = get_data(True, ["Cz"], 120)
     train_labels = pd.read_csv('data/TrainLabels.csv').values[:,1].ravel().astype(int)
 
-    print 'training GBM'
+    print 'Training GBM'
     ###     Algorithms      ###
     #algo = ens.AdaBoostClassifier(n_estimators=500, learning_rate=0.05)
-    algo = ens.GradientBoostingClassifier(n_estimators=500, learning_rate=0.05)
+    algo = ens.GradientBoostingClassifier(n_estimators=750, learning_rate=0.05)
 
     split = len(train)/2 # location to split data for cross-validation
     algo.fit(train[:split], train_labels[:split]) # train algorithm
@@ -130,3 +165,5 @@ if __name__ == "__main__":
 
     print "Finished."
     print "Running time: " + str(time.time() - start_time)
+
+
