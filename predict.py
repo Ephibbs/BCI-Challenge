@@ -15,6 +15,7 @@ from sklearn.tree import DecisionTreeClassifier
 from scipy.signal import filtfilt, butter
 from time import time
 from sklearn.decomposition import RandomizedPCA
+from pandas import pd
 
 def score(classifier, X, y):
     fpr, tpr, thresholds = metrics.roc_curve(y, classifier.predict(X), pos_label=1)
