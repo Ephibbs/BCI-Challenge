@@ -55,7 +55,7 @@ def fft(time_data):
 
 
 
-def parse_data(redo, dirName, channels, start, end, samples):
+def parse_data(dirName, channel, start, end, samples):
     '''Generates X and y to be fed into our predictor, and saves them to disk.
 
     Args:
@@ -65,11 +65,22 @@ def parse_data(redo, dirName, channels, start, end, samples):
         duration: The number of time-intervals, per sample, to use.
     '''
 
+    column = {'Time':0, 'Fp1':1, 'Fp2':2, ' AF7':3, 'AF3':4, 'AF4':5, 'AF8':6, 'F7':7, 'F5':8, 'F3':9, 'F1':10, 'Fz':11, 'F2':12, 'F4':13, 'F6':14, 'F8':15, 'FT7':16, 'FC5':17, 'FC3':18, 'FC1':19, 'FCz':20, 'FC2':21, 'FC4':22, 'FC6':23, 'FT8':24, 'T7':25, 'C5':26, 'C3':27, 'C1':28, 'Cz':29, 'C2':30, 'C4':31, 'C6':32, 'T8':33, 'TP7':34, 'CP5':35, 'CP3':36, 'CP1':37, 'CPz':38, 'CP2':39, 'CP4':40, 'CP6':41, 'TP8':42, 'P7':43, 'P5':44, 'P3':45, 'P1':46, 'Pz':47, 'P2':48, 'P4':49, 'P6':50, 'P8':51, 'PO7':52, 'POz':53, 'P08':54, 'O1':55, 'O2':56, 'EOG':57, 'FeedBackEvent':58}
+
+    for key, val in column.iteritems():
+    if val == channel:
+        print name
+
     print '========loading '+dirName+' data========'
 
-    data = np.load(open(dirName+".npy", "rb"))
+    data = np.load(open(dirName+"_no_pad.npy", "rb"))
     print data.shape
-    data = data[:,:,:].reshape((16*5*100,58*600))
+
+    data = data[:,:,31,30:150]
+    print data
+    data = data.reshape((16*340,120))
+    print "\n\n\n"
+    print data
 
     return data
 
@@ -130,20 +141,20 @@ if __name__ == "__main__":
 
     train = parse_data(redo, "train", sensorstouse, start, end, 5440)
 
-    n_components = 60
+    # n_components = 20
 
-    print("Extracting the top %d eigenfaces from %d faces"
-          % (n_components, train.shape[0]))
-    t0 = time()
-    pca = RandomizedPCA(n_components=n_components, whiten=True).fit(train)
-    print("done in %0.3fs" % (time() - t0))
+    # print("Extracting the top %d eigenfaces from %d faces"
+    #       % (n_components, train.shape[0]))
+    # t0 = time()
+    # pca = RandomizedPCA(n_components=n_components, whiten=True).fit(train)
+    # print("done in %0.3fs" % (time() - t0))
 
-    #eigenfaces = pca.components_.reshape((n_components, h, w))
+    # #eigenfaces = pca.components_.reshape((n_components, h, w))
 
-    print("Projecting the input data on the eigenfaces orthonormal basis")
-    t0 = time()
-    train = pca.transform(train)
-    print("done in %0.3fs" % (time() - t0))
+    # print("Projecting the input data on the eigenfaces orthonormal basis")
+    # t0 = time()
+    # train = pca.transform(train)
+    # print("done in %0.3fs" % (time() - t0))
 
     train_labels = pd.read_csv('data/TrainLabels.csv').values[:,1].ravel().astype(int)
 
