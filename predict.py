@@ -4,13 +4,22 @@ import time
 import sys
 import numpy as np
 import pandas as pd
-import sklearn
-import sklearn.ensemble as ens
+from sklearn.preprocessing import scale
+from sklearn.svm import SVC
+from sklearn.linear_model import SGDClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
 from sklearn import metrics
-
+from sklearn.lda import LDA
+from sklearn.qda import QDA
+from sklearn.naive_bayes import GaussianNB
+from sklearn.tree import DecisionTreeClassifier
+from pywt import * 
+from scipy.signal import filtfilt, butter
+from time import time
+from sklearn.decomposition import RandomizedPCA
 
 def score(classifier, X, y):
-    fpr, tpr, thresholds = metrics.roc_curve(y, classifier.predict_proba(X)[:,1], pos_label=1)
+    fpr, tpr, thresholds = metrics.roc_curve(y, classifier.predict(X), pos_label=1)
     auc = metrics.auc(fpr,tpr)
     return auc
 
@@ -45,7 +54,8 @@ def fft(time_data):
     return np.log10(np.absolute(sliced))
 
 
-def parse_data(dirName, subs, channels, duration, samples):
+
+def parse_data(redo, dirName, channels, start, end, samples):
     '''Generates X and y to be fed into our predictor, and saves them to disk.
 
     Args:
@@ -54,53 +64,23 @@ def parse_data(dirName, subs, channels, duration, samples):
         channels: The EEG data channels to use.
         duration: The number of time-intervals, per sample, to use.
     '''
-    output = pd.DataFrame(
-        columns=
-            ['subject','session','feedback_num','start_pos'] +
-            reduce(lambda x,y: x+y, [[channel+'_'+s for s in map(str,range(duration+1))] for channel in channels]) +
-            ['fft_'+freq for freq in map(str,range(1, 48))],
-        index=range(samples)
-    )
-    counter = 0
 
-    for i in subs: # Subjects
-        for j in range(1,6): # Sessions (1 - 5)
-            # Load in data
-            temp = np.load('data/data_processed/'+dirName+'/Data_S' + i + '_Sess0'  + str(j) + '.npy')
-            temp = np.delete(temp, (0), axis=0) # delete first row (column labels)
+    print '========loading '+dirName+' data========'
 
-            # Get the positions of the non-zero FeedBackEvents
-            feedback_positions = np.flatnonzero(get_column(temp, "FeedBackEvent"))
-            
-            feedback_counter = 0 # counter keeping track of feedback_num
-            for k in feedback_positions:
-                temp_time_data = pd.Series(reduce(lambda x,y: x+y, [get_column(temp, channel)[k:k+duration + 1] for channel in channels]))
+    data = np.load(open(dirName+".npy", "rb"))
+    print data.shape
+    data = data[:,:,:].reshape((16*5*100,58*600))
 
-                sklearn.preprocessing.scale(temp_time_data, copy=False)
+    return data
 
-                temp2 = pd.concat([temp_time_data, pd.Series(fft(temp_time_data.values))])
+def butterAndWavelet(channel):
+    N = 2
+    Wn = 0.01
+    B, A = butter(N, Wn)
+    sample = np.array(dwt(filtfilt(B, A, channel), 'haar')).flatten()
+    return sample
 
-
-                temp2.index = reduce(lambda x,y: x+y, [[channel+'_'+s for s in map(str,range(duration+1))] for channel in channels]) + ['fft_'+freq for freq in map(str,range(1, 48))]
-
-
-                output.loc[counter, reduce(lambda x,y: x+y, [[channel+'_' + s for s in map(str,range(duration+1))] for channel in channels]) + ['fft_'+freq for freq in map(str,range(1, 48))]] = temp2
-                output.loc[counter,'session'] = j
-                output.loc[counter, 'subject'] = i
-                output.loc[counter, 'feedback_num'] = feedback_counter
-                output.loc[counter, 'start_pos'] = k
-                counter +=1
-                feedback_counter +=1
-        sys.stdout.write(i + " ") # Using sys.stdout so we don't print newlines
-        sys.stdout.flush()
-
-    print '' # print new line
-
-    output.to_csv(dirName+'.csv',ignore_index=True)
-    return output
-
-
-def get_data(redo=True, channels=["Cz"], duration=260):
+def get_data(redo=True, channels=["Cz"], start=0, end=260):
     '''Helper function for parse_data.
 
     Args:
@@ -115,21 +95,17 @@ def get_data(redo=True, channels=["Cz"], duration=260):
     if redo == False: 
         return pd.read_csv('train.csv'), pd.read_csv('test.csv')
 
-    # train_subs = ['02']
-    train_subs = ['02','06','07','11','12','13','14','16','17','18','20','21','22','23','24','26']
-    test_subs = ['01','03','04','05','08','09','10','15','19','25']
-
     print '========loading train data========'
-    train = parse_data("train", train_subs, channels, duration, 5440)
+    train = parse_data("train", train_subs, channels, start, end, 5440)
     print '========loading test data========'
-    test = parse_data("test", test_subs, channels, duration, 3400)
+    test = parse_data("test", test_subs, channels, start, end, 3400)
 
     return train, test
 
 
-def predictions_to_file(algo, train, train_labels, test):
+def predictions_to_file(algo, train, train_labels, redo, channels, start, end):
+    test = parse_data(redo, "test", channels, start, end, 3400)
     algo.fit(train, train_labels)
-
     preds = algo.predict_proba(test) # why
     preds = preds[:,1]
     submission['Prediction'] = preds
@@ -138,20 +114,57 @@ def predictions_to_file(algo, train, train_labels, test):
 
 if __name__ == "__main__":
 
-    # sensors = ['EOG', 'FCz', 'O2', 'O1', 'Fz', 'TP7', 'CPz', 'C3', 'C2', 'C1', 'C6', 'C5', 'TP8', 'FC1', 'FC2', 'FC3', 'FC4', 'FC5', 'FC6', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'Cz', 'CP1', 'CP2', 'CP3', 'CP4', 'CP5', 'CP6', 'POz', 'Pz', 'C4', 'P4', 'FT7', 'FT8', 'AF8', 'PO7', 'AF4', 'AF3', 'P2', 'P3', 'P1', 'P6', 'P7', 'T8', 'P5', 'T7', 'P8', 'Fp1', 'Fp2', ' AF7', 'P08']
+    sensors = ['EOG', 'FCz', 'O2', 'O1', 'Fz', 'TP7', 'CPz', 'C3', 'C2', 'C1', 'C6', 'C5', 'TP8', 'FC1', 'FC2', 'FC3', 'FC4', 'FC5', 'FC6', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'Cz', 'CP1', 'CP2', 'CP3', 'CP4', 'CP5', 'CP6', 'POz', 'Pz', 'C4', 'P4', 'FT7', 'FT8', 'AF8', 'PO7', 'AF4', 'AF3', 'P2', 'P3', 'P1', 'P6', 'P7', 'T8', 'P5', 'T7', 'P8', 'Fp1', 'Fp2', ' AF7', 'P08']
 
-    start_time = time.time()
+    start_time = time()
 
     submission = pd.read_csv('data/SampleSubmission.csv')
-    train, test = get_data(True, ["Cz"], 120)
+    #Good: ['C2', 'CPz', 'FC4', 'C1', 'FC2', 'Cz', 'CP4', 'C4', 'Pz', 'FT8', 'P2', 'CP6', 'CP2', 'P4']
+
+    redo = True
+    sensorstouse = sensors #['C4']#['Cz','C4']
+    start = 30
+    end = 150
+
+    print 'Getting data'
+
+    train = parse_data(redo, "train", sensorstouse, start, end, 5440)
+
+    n_components = 60
+
+    print("Extracting the top %d eigenfaces from %d faces"
+          % (n_components, train.shape[0]))
+    t0 = time()
+    pca = RandomizedPCA(n_components=n_components, whiten=True).fit(train)
+    print("done in %0.3fs" % (time() - t0))
+
+    #eigenfaces = pca.components_.reshape((n_components, h, w))
+
+    print("Projecting the input data on the eigenfaces orthonormal basis")
+    t0 = time()
+    train = pca.transform(train)
+    print("done in %0.3fs" % (time() - t0))
+
     train_labels = pd.read_csv('data/TrainLabels.csv').values[:,1].ravel().astype(int)
 
     print 'Training GBM'
+
+
     ###     Algorithms      ###
-    #algo = ens.AdaBoostClassifier(n_estimators=500, learning_rate=0.05)
-    algo = ens.GradientBoostingClassifier(n_estimators=750, learning_rate=0.05)
+    #algo = AdaBoostClassifier(n_estimators=750, learning_rate=0.05)
+    algo = GradientBoostingClassifier(n_estimators=750, learning_rate=0.05, subsample=0.9)
+    #algo = SGDClassifier()
+    #algo = SVC(gamma=2, C=1)
+    #algo = QDA()
+    #algo = LDA()
+    #algo = GaussianNB()
+    #algo = RandomForestClassifier(max_depth=5, n_estimators=1000, max_features=100)
+
 
     split = len(train)/2 # location to split data for cross-validation
+
+
+
     algo.fit(train[:split], train_labels[:split]) # train algorithm
     pred = algo.predict(train[split:]) # predict
 
@@ -161,9 +174,9 @@ if __name__ == "__main__":
     print "AUC score:" + str(score(algo, train[split:], train_labels[split:]))
 
     # Make predictions and save to file
-    predictions_to_file(algo, train, train_labels, test)
+    #predictions_to_file(algo, train, train_labels, redo, sensorstouse, start, end)
 
     print "Finished."
-    print "Running time: " + str(time.time() - start_time)
+    print "Running time: " + str(time() - start_time)
 
 
