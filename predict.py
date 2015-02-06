@@ -3,7 +3,6 @@
 import time
 import sys
 import numpy as np
-import pandas as pd
 from sklearn.preprocessing import scale
 from sklearn.svm import SVC
 from sklearn.linear_model import SGDClassifier
@@ -13,7 +12,6 @@ from sklearn.lda import LDA
 from sklearn.qda import QDA
 from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier
-from pywt import * 
 from scipy.signal import filtfilt, butter
 from time import time
 from sklearn.decomposition import RandomizedPCA
