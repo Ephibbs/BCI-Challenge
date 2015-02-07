@@ -106,9 +106,9 @@ def get_data(redo=True, channels=["Cz"], start=0, end=260):
         return pd.read_csv('train.csv'), pd.read_csv('test.csv')
 
     print '========loading train data========'
-    train = parse_data("train", train_subs, channels, start, end, 5440)
+    train = parse_data("train", channels, start, end, 5440)
     print '========loading test data========'
-    test = parse_data("test", test_subs, channels, start, end, 3400)
+    test = parse_data("test", channels, start, end, 3400)
 
     return train, test
 
@@ -138,7 +138,7 @@ if __name__ == "__main__":
 
     print 'Getting data'
 
-    train = parse_data(redo, "train", sensorstouse, start, end, 5440)
+    train = parse_data("train", sensorstouse, start, end, 5440)
 
     # n_components = 20
 
