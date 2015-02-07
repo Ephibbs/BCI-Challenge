@@ -72,7 +72,7 @@ def parse_data(dirName, channel, start, end, samples):
 
     print '========loading '+dirName+' data========'
 
-    data = np.load(open("data/"dirName+"_no_pad.npy", "rb"))
+    data = np.load(open("data/"+dirName+"_no_pad.npy", "rb"))
     print data.shape
 
     data = data[:,:,31,30:150]
